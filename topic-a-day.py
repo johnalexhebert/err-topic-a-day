@@ -175,9 +175,6 @@ class TopicADay(BotPlugin):
 
         # name of the channel to post in
         get_config_item("TOPIC_CHANNEL", configuration)
-        configuration["TOPIC_CHANNEL_ID"] = self._bot.channelname_to_channelid(
-            configuration["TOPIC_CHANNEL"]
-        )
         # Days to post a topic. Comma separated list of day names
         get_config_item(
             "TOPIC_DAYS",
@@ -256,17 +253,44 @@ class TopicADay(BotPlugin):
         )
 
     def post_topic(self) -> None:
+        """
+        Called by our scheduled jobs to post the topic message for the day. Also calls any backend specific
+        pre_post_topic methods
+        """
         new_topic = self.topics.get_random()
         topic_template = f"Today's Topic: {new_topic['topic']}"
-        self._bot.api_call(
-            "channels.setTopic",
-            {"channel": self.config["TOPIC_CHANNEL_ID"], "topic": topic_template},
-        )
+        # call any special steps for the backend
+        try:
+            backend_specific = getattr(self, f"{self._bot.mode}_pre_post_topic")
+            backend_specific(topic_template)
+        except AttributeError:
+            self.log.debug("%s has no backend specific tasks", self._bot.mode)
+            pass
         self.send(self.build_identifier(self.config["TOPIC_CHANNEL"]), topic_template)
         self.topics.set_used(new_topic["id"])
 
     def run_scheduled_jobs(self) -> None:
         """
         Run by an errbot poller to run schedule jobs
+
+        Cannot be a static method because it's a poller
         """
         schedule.run_pending()
+
+    # Backend specific pre_post tasks. Examples include setting channel topics
+    # Backend specific pre_post tasks should be named like {backend_name}_pre_post_topic and take two arguments, self
+    # and a topic: str. They should not return anything
+    def slack_pre_post_topic(self, topic: str) -> None:
+        """
+        Called from post_topic before the topic is posted. For slack, this also sets the channel topic
+
+        """
+        self._bot.api_call(
+            "channels.setTopic",
+            {
+                "channel": self._bot.channelname_to_channelid(
+                    self.config["TOPIC_CHANNEL"]
+                ),
+                "topic": topic,
+            },
+        )
