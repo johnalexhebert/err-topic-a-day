@@ -8,7 +8,6 @@ from threading import RLock
 
 from errbot.backends.base import Message as ErrbotMessage
 from errbot import BotPlugin
-from errbot import Command
 from errbot import ValidationException
 from errbot import arg_botcmd
 from errbot import botcmd
@@ -188,7 +187,7 @@ class TopicADay(BotPlugin):
         # what time the topic is posted every day, 24hr notation
         get_config_item("TOPIC_TIME", configuration, default="09:00")
         # How frequently the poller runs. Lower numbers might result in higher load
-        get_config_item("TOPIC_POLLER_INTERVAL", configuration, default=5, cast=int)
+        get_config_item("TOPIC_POLLER_INTERVAL", configuration, default=60, cast=int)
         super().configure(configuration)
 
     def check_configuration(self, configuration: Dict) -> None:
@@ -211,6 +210,11 @@ class TopicADay(BotPlugin):
         if len(invalid_days) > 0:
             raise ValidationException("TOPIC_DAYS invalid %s", invalid_days)
 
+        if configuration["TOPIC_POLLER_INTERVAL"] < 30:
+            self.log.warning(
+                "TOPIC_POLLER_INTERVAL of <30 can cause issues. Your setting: %s",
+                configuration["TOPIC_POLLER_INTERVAL"],
+            )
         # TODO: Write more configuration validation
         return
 
@@ -229,7 +233,7 @@ class TopicADay(BotPlugin):
         )
 
     @botcmd
-    def list_topics(self, msg: ErrbotMessage, args: List) -> None:
+    def list_topics(self, msg: ErrbotMessage, _: List) -> None:
         """
         Lists all of our topics
         """
@@ -252,6 +256,17 @@ class TopicADay(BotPlugin):
         self.send(
             msg.frm,
             "Upcoming Topics:\n{}".format("\n".join(free_topics)),
+            in_reply_to=msg,
+        )
+
+    @botcmd(admin_only=True)
+    def list_jobs(self, msg: ErrbotMessage, _: List) -> None:
+        """
+        Lists our schedule jobs
+        """
+        self.send(
+            msg.frm,
+            "Schedule jobs:\n{}".format("\n".join(schedule.jobs)),
             in_reply_to=msg,
         )
 
