@@ -264,11 +264,11 @@ class TopicADay(BotPlugin):
         """
         Lists our schedule jobs
         """
-        self.send(
-            msg.frm,
-            "Schedule jobs:\n{}".format("\n".join(schedule.jobs)),
-            in_reply_to=msg,
-        )
+        jobs = ""
+        for job in schedule.jobs:
+            jobs += f"\n{job}"
+
+        self.send(msg.frm, f"Schedule.jobs: {jobs}", in_reply_to=msg)
 
     def post_topic(self) -> None:
         new_topic = self.topics.get_random()
